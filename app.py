@@ -6,7 +6,7 @@ import json
 
 app = Flask(__name__)
 
-# 施設リスト（松本市公共施設予約システム 体育施設カテゴリー）
+# 施設リスト（「〇〇体育館」の名称を持つ施設のみ・全25施設）
 FACILITIES = [
     {"id": "checkShisetsu202001", "value": "202001", "name": "総合体育館"},
     {"id": "checkShisetsu202002", "value": "202002", "name": "南部体育館"},
@@ -28,6 +28,11 @@ FACILITIES = [
     {"id": "checkShisetsu202018", "value": "202018", "name": "臨空工業団地体育館"},
     {"id": "checkShisetsu202019", "value": "202019", "name": "四賀体育館"},
     {"id": "checkShisetsu202020", "value": "202020", "name": "安曇体育館"},
+    {"id": "checkShisetsu202021", "value": "202021", "name": "梓川体育館"},
+    {"id": "checkShisetsu202022", "value": "202022", "name": "波田体育館"},
+    {"id": "checkShisetsu202023", "value": "202023", "name": "乗鞍体育館"},
+    {"id": "checkShisetsu202024", "value": "202024", "name": "奈川寄合渡体育館"},
+    {"id": "checkShisetsu202025", "value": "202025", "name": "奈川木曽路原体育館"},
 ]
 
 @app.route('/')
@@ -47,22 +52,36 @@ def launch_browser():
         return jsonify({"status": "error", "message": "日付を選択してください"})
 
     # automation.py を別プロセスで起動（非ブロッキング）
-    script_path = os.path.join(os.path.dirname(__file__), 'automation.py')
+    script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'automation.py')
     env = os.environ.copy()
 
     try:
-        subprocess.Popen(
-            [
-                sys.executable,
-                script_path,
-                json.dumps(facility_ids),
-                target_date
-            ],
-            env=env,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            close_fds=True
-        )
+        if sys.platform == 'win32':
+            # Windows: 新しいコンソールウィンドウで起動
+            subprocess.Popen(
+                [
+                    sys.executable,
+                    script_path,
+                    json.dumps(facility_ids),
+                    target_date
+                ],
+                env=env,
+                creationflags=subprocess.CREATE_NEW_CONSOLE
+            )
+        else:
+            # Mac/Linux
+            subprocess.Popen(
+                [
+                    sys.executable,
+                    script_path,
+                    json.dumps(facility_ids),
+                    target_date
+                ],
+                env=env,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True
+            )
         return jsonify({
             "status": "ok",
             "message": "ブラウザを起動しました。別ウィンドウをご確認ください。"

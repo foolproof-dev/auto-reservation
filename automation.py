@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 """
 松本市 公共施設予約システム 自動操作スクリプト
-- 施設選択と日付指定で検索結果画面まで自動遷移する
+- 施設選択 → 施設別空き状況ページ → 表示開始日入力 → 表示ボタン押下
 """
 
 import sys
 import json
-import re
-import time
 from datetime import datetime
+
 
 def run(facility_ids: list, target_date: str):
     """
@@ -19,13 +18,12 @@ def run(facility_ids: list, target_date: str):
     from playwright.sync_api import sync_playwright
 
     dt = datetime.strptime(target_date, "%Y-%m-%d")
-    target_year  = dt.year
-    target_month = dt.month
-    target_day   = dt.day
+    # サイトの日付フォーマットに合わせる（例: "2026/3/10"）
+    date_for_form = f"{dt.year}/{dt.month}/{dt.day}"
 
     print(f"[自動操作開始]")
-    print(f"  施設ID : {facility_ids}")
-    print(f"  対象日 : {target_year}年{target_month}月{target_day}日")
+    print(f"  施設ID  : {facility_ids}")
+    print(f"  表示開始日: {date_for_form}")
 
     with sync_playwright() as p:
         browser = p.chromium.launch(
@@ -35,8 +33,8 @@ def run(facility_ids: list, target_date: str):
         context = browser.new_context(no_viewport=True)
         page    = context.new_page()
 
-        # ─── STEP 1: トップページ ───────────────────────────
-        print("\n[STEP 1/5] トップページへアクセス中...")
+        # ─── STEP 1: トップページ ─────────────────────────────
+        print("\n[STEP 1/4] トップページへアクセス中...")
         page.goto(
             'https://yoyaku.city.matsumoto.lg.jp/WebR/Home/WgR_ModeSelect',
             wait_until='networkidle',
@@ -44,24 +42,30 @@ def run(facility_ids: list, target_date: str):
         )
         print(f"  URL: {page.url}")
 
-        # ─── STEP 2: 体育施設カテゴリー選択 ─────────────────
-        print("\n[STEP 2/5] 体育施設カテゴリーをクリック...")
+        # ─── STEP 2: 体育施設カテゴリー選択 ───────────────────
+        print("\n[STEP 2/4] 体育施設カテゴリーをクリック...")
         page.click('#category_10')
         page.wait_for_load_state('networkidle', timeout=15000)
         print(f"  URL: {page.url}")
 
-        # 「さらに読み込む」ボタンがあればクリック（全20施設表示）
-        try:
-            more_btn = page.query_selector('text=さらに読み込む')
-            if more_btn and more_btn.is_visible():
-                more_btn.click()
-                page.wait_for_timeout(1500)
-                print("  全施設を表示しました")
-        except Exception:
-            pass
+        # 「さらに読み込む」ボタンを最大2回クリック（〇〇体育館が全て表示される）
+        click_count = 0
+        while click_count < 2:
+            try:
+                more_btn = page.query_selector('text=さらに読み込む')
+                if more_btn and more_btn.is_visible():
+                    more_btn.click()
+                    page.wait_for_timeout(1000)
+                    click_count += 1
+                else:
+                    break
+            except Exception:
+                break
+        if click_count > 0:
+            print(f"  「さらに読み込む」を{click_count}回クリック → 体育館一覧を表示しました")
 
-        # ─── STEP 3: 施設選択 ────────────────────────────────
-        print("\n[STEP 3/5] 施設を選択中...")
+        # ─── STEP 3: 施設選択 ──────────────────────────────────
+        print("\n[STEP 3/4] 施設を選択中...")
         selected_names = []
         for fid in facility_ids:
             try:
@@ -70,7 +74,6 @@ def run(facility_ids: list, target_date: str):
                     name = label.inner_text().strip()
                     label.click()
                     page.wait_for_timeout(200)
-                    # チェック確認
                     cb = page.query_selector(f'#{fid}')
                     if cb and cb.is_checked():
                         selected_names.append(name)
@@ -85,87 +88,26 @@ def run(facility_ids: list, target_date: str):
         if not selected_names:
             print("  ⚠️ 施設が1件も選択できませんでした。処理を続行します。")
 
-        # ─── STEP 4: 施設別空き状況ページへ ─────────────────
-        print("\n[STEP 4/5] 空き状況ページへ移行中...")
+        # ─── STEP 4: 施設別空き状況ページ → 表示開始日入力 → 表示 ───
+        print("\n[STEP 4/4] 空き状況ページへ移行中...")
         with page.expect_navigation(wait_until='networkidle', timeout=15000):
             page.evaluate("__doPostBack('next','')")
         print(f"  URL: {page.url}")
 
-        # ─── STEP 5: 対象月に移動して日付を選択 ─────────────
-        print(f"\n[STEP 5/5] {target_year}年{target_month}月{target_day}日を検索中...")
+        # 表示開始日フィールドに日付を入力
+        print(f"  表示開始日に「{date_for_form}」を入力中...")
+        page.fill('#dpStartDate', date_for_form)
+        page.wait_for_timeout(300)
 
-        found_date = False
-        for nav_count in range(15):
-            # 現在の表示月を確認
-            month_el = page.query_selector('.pagination .month')
-            if not month_el:
-                print("  ⚠️ 月表示が見つかりません")
-                break
+        # 「表示」ボタンを押下
+        print(f"  「表示」ボタンを押下中...")
+        with page.expect_navigation(wait_until='networkidle', timeout=15000):
+            page.evaluate("__doPostBack('hyouji','')")
+        print(f"  URL: {page.url}")
 
-            month_text = month_el.inner_text().strip()
-            print(f"  現在表示中: {month_text}")
-
-            m = re.search(r'(\d{4})年(\d{1,2})月', month_text)
-            if not m:
-                print("  ⚠️ 年月を解析できません")
-                break
-
-            cur_y = int(m.group(1))
-            cur_m = int(m.group(2))
-
-            # 目標月に到達したか確認
-            if cur_y == target_year and cur_m == target_month:
-                # 対象日付のチェックボックスを探す
-                date_str = f"{target_year}{target_month:02d}{target_day:02d}"
-                checkboxes = page.query_selector_all('input[name="checkdate"]')
-                print(f"  チェックボックス数: {len(checkboxes)}")
-
-                for cb in checkboxes:
-                    val = cb.get_attribute('value') or ''
-                    if val.startswith(date_str):
-                        cb_id = cb.get_attribute('id')
-                        label = page.query_selector(f'label[for="{cb_id}"]')
-                        if label:
-                            label_text = label.inner_text().strip()
-                            if label_text in ['○', '△']:
-                                label.click()
-                                page.wait_for_timeout(300)
-                                found_date = True
-                                print(f"  ✓ {date_str} を選択しました（状態: {label_text}）")
-                                break
-                            else:
-                                print(f"  ⚠️ {date_str} は選択不可（状態: {label_text}）")
-
-                if not found_date:
-                    print(f"  ⚠️ {date_str} の選択可能なセルが見つかりませんでした")
-                    print("     空き状況カレンダーをそのまま表示します")
-                break
-
-            # 月を移動
-            target_month_num = target_year * 12 + target_month
-            cur_month_num    = cur_y * 12 + cur_m
-
-            if cur_month_num < target_month_num:
-                print(f"  → 次の月へ")
-                with page.expect_navigation(wait_until='networkidle', timeout=10000):
-                    page.evaluate("__doPostBack('period','next')")
-            else:
-                print(f"  ← 前の月へ")
-                with page.expect_navigation(wait_until='networkidle', timeout=10000):
-                    page.evaluate("__doPostBack('period','prev')")
-
-        # 日付が選択できた場合は「次へ進む」で詳細へ
-        if found_date:
-            print("\n[検索結果へ移行中...]")
-            with page.expect_navigation(wait_until='networkidle', timeout=15000):
-                page.evaluate("__doPostBack('next','')")
-            print(f"  最終URL: {page.url}")
-            print("\n=== 検索結果を表示しました ===")
-        else:
-            print("\n=== 空き状況カレンダーを表示しています ===")
-
+        print(f"\n=== {date_for_form} からの空き状況を表示しました ===")
         print("\nブラウザを開いたままにしています。")
-        print("操作が完了したら、ブラウザウィンドウを閉じてください。")
+        print("確認が終わったらブラウザウィンドウを閉じてください。")
 
         # ブラウザを開いたままにする（終了を待機）
         try:
