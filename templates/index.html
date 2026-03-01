@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>松本市 体育館 空き状況チェッカー</title>
+  <style>
+    /* ===== リセット & ベース ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Hiragino Sans', 'Meiryo', sans-serif;
+      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    /* ===== カード ===== */
+    .card {
+      background: rgba(255, 255, 255, 0.97);
+      border-radius: 20px;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.4);
+      padding: 40px 44px;
+      width: 100%;
+      max-width: 600px;
+    }
+
+    /* ===== ヘッダー ===== */
+    .header {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+    .header .icon {
+      font-size: 48px;
+      display: block;
+      margin-bottom: 10px;
+    }
+    .header h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #1a2e4a;
+      line-height: 1.4;
+    }
+    .header p {
+      font-size: 13px;
+      color: #6b7a8d;
+      margin-top: 6px;
+    }
+
+    /* ===== セクション ===== */
+    .section {
+      margin-bottom: 28px;
+    }
+    .section-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #4a6fa5;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .section-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: #e0e8f0;
+    }
+
+    /* ===== 施設グリッド ===== */
+    .facility-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+
+    .facility-item input[type="checkbox"] {
+      display: none;
+    }
+    .facility-item label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border: 2px solid #e0e8f0;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 14px;
+      color: #2d3748;
+      transition: all 0.2s;
+      user-select: none;
+    }
+    .facility-item label::before {
+      content: '';
+      width: 18px;
+      height: 18px;
+      border: 2px solid #c0cdd8;
+      border-radius: 5px;
+      flex-shrink: 0;
+      transition: all 0.2s;
+      background: white;
+    }
+    .facility-item input:checked + label {
+      border-color: #4a6fa5;
+      background: #edf2fa;
+      color: #1a3a6b;
+      font-weight: 600;
+    }
+    .facility-item input:checked + label::before {
+      background: #4a6fa5;
+      border-color: #4a6fa5;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 10'%3E%3Cpath fill='white' d='M1 5l3 4L11 1'/%3E%3C/svg%3E");
+      background-size: 12px 10px;
+      background-repeat: no-repeat;
+      background-position: center;
+    }
+    .facility-item label:hover {
+      border-color: #4a6fa5;
+      background: #f5f8fd;
+    }
+
+    /* ===== 全選択ボタン ===== */
+    .select-actions {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .btn-small {
+      font-size: 12px;
+      padding: 5px 12px;
+      border: 1px solid #c0cdd8;
+      border-radius: 6px;
+      background: white;
+      cursor: pointer;
+      color: #4a6fa5;
+      transition: all 0.2s;
+    }
+    .btn-small:hover {
+      background: #edf2fa;
+      border-color: #4a6fa5;
+    }
+
+    /* ===== 日付入力 ===== */
+    .date-input-wrap {
+      position: relative;
+    }
+    .date-input-wrap input[type="date"] {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #e0e8f0;
+      border-radius: 10px;
+      font-size: 16px;
+      color: #2d3748;
+      transition: border-color 0.2s;
+      outline: none;
+      background: white;
+    }
+    .date-input-wrap input[type="date"]:focus {
+      border-color: #4a6fa5;
+      box-shadow: 0 0 0 3px rgba(74, 111, 165, 0.15);
+    }
+
+    /* ===== 起動ボタン ===== */
+    .btn-launch {
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, #4a6fa5, #2c5364);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 17px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      letter-spacing: 0.5px;
+      margin-top: 8px;
+    }
+    .btn-launch:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(44, 83, 100, 0.5);
+    }
+    .btn-launch:active:not(:disabled) {
+      transform: translateY(0);
+    }
+    .btn-launch:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    /* ===== ステータス ===== */
+    #status-box {
+      display: none;
+      margin-top: 20px;
+      border-radius: 12px;
+      padding: 16px 20px;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    #status-box.loading {
+      background: #edf5ff;
+      border: 1px solid #bbd6ff;
+      color: #1a3a6b;
+      display: block;
+    }
+    #status-box.success {
+      background: #f0faf3;
+      border: 1px solid #86d9a0;
+      color: #1a4a2a;
+      display: block;
+    }
+    #status-box.error {
+      background: #fff0f0;
+      border: 1px solid #ffb0b0;
+      color: #6b1a1a;
+      display: block;
+    }
+
+    /* ===== ローディングスピナー ===== */
+    .spinner {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border: 3px solid rgba(74, 111, 165, 0.3);
+      border-top-color: #4a6fa5;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ===== ステップ表示 ===== */
+    .steps {
+      background: #f8fafc;
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-top: 20px;
+    }
+    .steps h3 {
+      font-size: 12px;
+      font-weight: 700;
+      color: #6b7a8d;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .step-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .step-list li {
+      font-size: 13px;
+      color: #4a5568;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .step-num {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #4a6fa5;
+      color: white;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    /* ===== フッター ===== */
+    .footer {
+      text-align: center;
+      margin-top: 24px;
+      font-size: 12px;
+      color: #a0aab4;
+      line-height: 1.6;
+    }
+    .footer a {
+      color: #4a6fa5;
+      text-decoration: none;
+    }
+    .footer a:hover { text-decoration: underline; }
+
+    /* ===== レスポンシブ ===== */
+    @media (max-width: 480px) {
+      .card { padding: 28px 20px; }
+      .facility-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="card">
+
+  <!-- ヘッダー -->
+  <div class="header">
+    <span class="icon">🏟️</span>
+    <h1>松本市 体育館<br>空き状況チェッカー</h1>
+    <p>施設と日付を選んでブラウザを自動起動します</p>
+  </div>
+
+  <!-- 施設選択 -->
+  <div class="section">
+    <div class="section-title">🏠 施設を選択</div>
+    <div class="select-actions">
+      <button class="btn-small" onclick="selectAll()">すべて選択</button>
+      <button class="btn-small" onclick="clearAll()">すべて解除</button>
+    </div>
+    <div class="facility-grid" id="facilityGrid">
+      {% for f in facilities %}
+      <div class="facility-item">
+        <input type="checkbox" id="fac_{{ f.id }}" value="{{ f.id }}" class="fac-checkbox">
+        <label for="fac_{{ f.id }}">{{ f.name }}</label>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- 日付選択 -->
+  <div class="section">
+    <div class="section-title">📅 日付を選択</div>
+    <div class="date-input-wrap">
+      <input type="date" id="targetDate" min="" />
+    </div>
+  </div>
+
+  <!-- 起動ボタン -->
+  <button class="btn-launch" id="launchBtn" onclick="launchBrowser()">
+    <span>🚀</span>
+    <span>ブラウザを起動して空き状況を確認</span>
+  </button>
+
+  <!-- ステータス表示 -->
+  <div id="status-box"></div>
+
+  <!-- 操作ステップ -->
+  <div class="steps">
+    <h3>自動操作の流れ</h3>
+    <ul class="step-list">
+      <li><span class="step-num">1</span>松本市公共施設予約システムへアクセス</li>
+      <li><span class="step-num">2</span>体育施設カテゴリーを選択</li>
+      <li><span class="step-num">3</span>指定した体育館にチェック</li>
+      <li><span class="step-num">4</span>指定日付の空き状況ページへ移動</li>
+      <li><span class="step-num">5</span>検索結果をブラウザに表示</li>
+    </ul>
+  </div>
+
+  <!-- フッター -->
+  <div class="footer">
+    <p>予約サイト：<a href="https://yoyaku.city.matsumoto.lg.jp/WebR/" target="_blank">松本市公共施設予約システム</a></p>
+  </div>
+
+</div>
+
+<script>
+  // 今日以降の日付のみ選択可能にする
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  const todayStr = `${yyyy}-${mm}-${dd}`;
+  document.getElementById('targetDate').min = todayStr;
+  document.getElementById('targetDate').value = todayStr;
+
+  function selectAll() {
+    document.querySelectorAll('.fac-checkbox').forEach(cb => cb.checked = true);
+  }
+  function clearAll() {
+    document.querySelectorAll('.fac-checkbox').forEach(cb => cb.checked = false);
+  }
+
+  function showStatus(type, message) {
+    const box = document.getElementById('status-box');
+    box.className = type;
+    box.innerHTML = message;
+  }
+
+  async function launchBrowser() {
+    // 入力チェック
+    const facilityIds = [...document.querySelectorAll('.fac-checkbox:checked')].map(cb => cb.value);
+    const targetDate = document.getElementById('targetDate').value;
+
+    if (facilityIds.length === 0) {
+      showStatus('error', '⚠️ 施設を1つ以上選択してください');
+      return;
+    }
+    if (!targetDate) {
+      showStatus('error', '⚠️ 日付を選択してください');
+      return;
+    }
+
+    // ボタン無効化
+    const btn = document.getElementById('launchBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span><span>ブラウザ起動中...</span>';
+
+    showStatus('loading', `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+        <span class="spinner"></span>
+        <strong>ブラウザを自動起動しています</strong>
+      </div>
+      <div>📍 施設: ${facilityIds.length}件選択中</div>
+      <div>📅 日付: ${targetDate}</div>
+      <div style="margin-top:8px;font-size:12px;color:#4a6fa5;">
+        しばらくすると別のブラウザウィンドウが開きます
+      </div>
+    `);
+
+    try {
+      const res = await fetch('/launch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ facility_ids: facilityIds, date: targetDate })
+      });
+      const data = await res.json();
+
+      if (data.status === 'ok') {
+        showStatus('success', `
+          <div style="font-size:16px;margin-bottom:8px;">✅ ブラウザ起動完了！</div>
+          <div>別ウィンドウで予約サイトが自動操作されています。</div>
+          <div style="margin-top:8px;font-size:12px;color:#4a7a5a;">
+            ※ 別のブラウザウィンドウをご確認ください。
+          </div>
+        `);
+      } else {
+        showStatus('error', `❌ エラー: ${data.message}`);
+      }
+    } catch (e) {
+      showStatus('error', `❌ 通信エラー: ${e.message}`);
+    }
+
+    // ボタンを元に戻す
+    btn.disabled = false;
+    btn.innerHTML = '<span>🚀</span><span>ブラウザを起動して空き状況を確認</span>';
+  }
+</script>
+
+</body>
+</html>
